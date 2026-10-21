@@ -1,0 +1,55 @@
+:root {
+  --bg: #f7f7f5; --surface: #fff; --text: #1f2328; --muted: #656d76; --line: #d8dadd;
+  --accent: #2357d4; --ok: #1a7f37; --ok-bg: #e6f4ea; --bad: #c62828; --bad-bg: #fdecea; --warn: #9a6700; --warn-bg: #fff8e1;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --surface: #1e2125; --text: #e6e8eb; --muted: #9aa1a9; --line: #353a40;
+    --accent: #7aa2ff; --ok: #5cc879; --ok-bg: #16301e; --bad: #ff7b72; --bad-bg: #3a1b1b; --warn: #e3b341; --warn-bg: #33290f;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+a { color: var(--accent); }
+.top { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.brand { font-weight: 700; text-decoration: none; color: var(--text); }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; }
+h1 { font-size: 1.4rem; margin: 8px 0 16px; }
+h2 { font-size: 1.1rem; margin: 24px 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+.muted { color: var(--muted); font-size: .9rem; }
+.badge { display: inline-block; font-size: .75rem; padding: 2px 8px; border-radius: 99px; background: var(--warn-bg); color: var(--warn); margin-left: 6px; }
+button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; min-height: 44px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:focus-visible, input:focus-visible + span, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* 풀이 화면: PC는 문제 + OMR 병렬, 모바일은 OMR 접기 */
+.solve { display: grid; grid-template-columns: 1fr 260px; gap: 16px; align-items: start; }
+.omr { position: sticky; top: 12px; }
+@media (max-width: 800px) { .solve { grid-template-columns: 1fr; } .omr { position: static; order: -1; } }
+.omr-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.omr-grid a { display: block; text-align: center; padding: 6px 0; border: 1px solid var(--line); border-radius: 6px; text-decoration: none; color: var(--text); font-size: .85rem; }
+.omr-grid a.done { background: var(--accent); color: #fff; border-color: var(--accent); }
+.omr-grid a.marked { box-shadow: inset 0 -3px 0 var(--warn); }
+.status { font-size: .85rem; color: var(--muted); }
+.status.error { color: var(--bad); }
+
+.q-head { display: flex; justify-content: space-between; gap: 8px; }
+.q-subject { font-size: .8rem; color: var(--muted); }
+.choices { list-style: none; padding: 0; margin: 12px 0 0; }
+.choices label { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; cursor: pointer; }
+.choices input { margin-top: 5px; width: 18px; height: 18px; }
+.choices label.is-answer { border-color: var(--ok); background: var(--ok-bg); }
+.choices label.is-wrong { border-color: var(--bad); background: var(--bad-bg); }
+.fb { margin-top: 8px; padding: 10px 12px; border-radius: 8px; }
+.fb.ok { background: var(--ok-bg); color: var(--ok); }
+.fb.bad { background: var(--bad-bg); color: var(--bad); }
+.fb p { color: var(--text); margin: 4px 0 0; }
+.mark { font-size: .85rem; display: flex; gap: 6px; align-items: center; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); font-size: .95rem; }
+.fail { color: var(--bad); font-weight: 600; }
+.pass { color: var(--ok); font-weight: 600; }
+.big { font-size: 2rem; font-weight: 700; }

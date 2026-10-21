@@ -1,0 +1,22 @@
+{
+  "name": "cbt-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "db:migrate": "wrangler d1 migrations apply cbt --local",
+    "db:import": "node scripts/import-paper.mjs content/sample-paper.json > .wrangler/import.sql && wrangler d1 execute cbt --local --file .wrangler/import.sql",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261021.1",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.151.3"
+  }
+}
