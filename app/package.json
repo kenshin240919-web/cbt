@@ -9,7 +9,7 @@
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "deploy": "wrangler deploy",
-    "import:remote": "node scripts/import-all.mjs > .wrangler/import-all.sql && wrangler d1 execute cbt --remote --file .wrangler/import-all.sql",
+    "import:remote": "mkdir -p .wrangler && node scripts/import-all.mjs > .wrangler/import-all.sql && wrangler d1 execute cbt --remote --file .wrangler/import-all.sql",
     "deploy:ci": "wrangler d1 migrations apply cbt --remote && npm run import:remote && wrangler deploy"
   },
   "dependencies": {
