@@ -150,6 +150,10 @@ test('ads.txt·robots·sitemap·개인정보처리방침', async () => {
   assert.match(await (await app.request('/privacy', {}, env)).text(), /Google AdSense/);
   // 실제 설정(wrangler.jsonc) 값 확인
   assert.equal(await (await app.request('/ads.txt', {}, env)).text(), 'google.com, pub-3087515825675332, DIRECT, f08c47fec0942fa0\n');
+  const live = await (await app.request('/p/isafety-sample', {}, env)).text();
+  assert.equal((live.match(/data-ad-slot="4261384956"/g) ?? []).length, 2); // 인아티클: 5·10번 뒤
+  assert.equal((live.match(/data-ad-slot="6639512269"/g) ?? []).length, 2); // 디스플레이: 2번 뒤·맨 아래
+  assert.match(live, /data-ad-layout="in-article" data-ad-format="fluid"/);
   assert.match(await (await app.request('/p/isafety-sample', {}, env)).text(), /<link rel="canonical" href="https:\/\/cbt\.guidejung\.com\/p\/isafety-sample">/);
   const ads = await (await app.request('/p/isafety-sample', {}, { ...adEnv, ADSENSE_SLOT_DISPLAY: '111' })).text();
   assert.equal((ads.match(/data-ad-slot="111"/g) ?? []).length, 4); // 콘텐츠 내 단위 미설정 → 디스플레이로 대체
