@@ -9,7 +9,7 @@
     "run_worker_first": ["/api/*", "/p/*", "/privacy", "/sitemap.xml", "/robots.txt", "/ads.txt", "/ads-config.js"]
   },
   "d1_databases": [
-    { "binding": "DB", "database_name": "cbt", "database_id": "local-dev-placeholder", "migrations_dir": "migrations" }
+    { "binding": "DB", "database_name": "cbt", "database_id": "6184d731-04ce-4769-9a62-1039032c57c5", "migrations_dir": "migrations" }
   ],
   "routes": [{ "pattern": "cbt.guidejung.com", "custom_domain": true }],
   // ADSENSE_SLOT_INARTICLE이 비어 있으면 그 자리에 디스플레이 광고 단위를 대신 쓴다.
