@@ -134,7 +134,7 @@ export async function paperPage(c: Ctx, paperId: string, pageParam?: string) {
   <div class="row pager-main">
     ${page > 1 ? `<a class="btn" href="${pageUrl(page - 1)}" rel="prev">← 이전 5문제</a>` : '<span></span>'}
     <span class="muted">${page} / ${pages}</span>
-    ${page < pages ? `<a class="btn primary" href="${pageUrl(page + 1)}" rel="next">다음 5문제 →</a>` : `<a class="btn primary" data-google-vignette="false" href="/start/${encodeURIComponent(paper.id)}/exam">CBT로 풀어보기</a>`}
+    ${page < pages ? `<a class="btn primary" href="${pageUrl(page + 1)}" rel="next">다음 5문제 →</a>` : `<a class="btn primary" href="/start/${encodeURIComponent(paper.id)}/exam">CBT로 풀어보기</a>`}
   </div>
   <details class="page-index"><summary>전체 문항 바로가기</summary>
     <div class="page-grid">${Array.from({ length: pages }, (_, k) => {
@@ -154,9 +154,9 @@ export async function paperPage(c: Ctx, paperId: string, pageParam?: string) {
 <h1>${esc(paper.title)} 문제 및 해설 <span class="muted">${range}</span></h1>
 <p class="muted">${esc(paper.certification)} · 전체 ${all.length}문항 · ${esc(SOURCE_LABEL[paper.source_type] ?? paper.source_type)}${paper.source_note ? ` · ${esc(paper.source_note)}` : ''}</p>
 ${page === 1 ? `<div class="card row">
-  <a class="btn primary" data-google-vignette="false" href="/start/${encodeURIComponent(paper.id)}/exam">CBT 시험모드로 풀기</a>
-  <a class="btn" data-google-vignette="false" href="/start/${encodeURIComponent(paper.id)}/practice">연습모드로 풀기</a>
-  <a class="btn" data-google-vignette="false" href="/s/${encodeURIComponent(paper.id)}">과목별로 풀기</a>
+  <a class="btn primary" href="/start/${encodeURIComponent(paper.id)}/exam">CBT 시험모드로 풀기</a>
+  <a class="btn" href="/start/${encodeURIComponent(paper.id)}/practice">연습모드로 풀기</a>
+  <a class="btn" href="/s/${encodeURIComponent(paper.id)}">과목별로 풀기</a>
 </div>` : ''}
 ${parts.join('\n')}
 ${adHtml(c.env, 'display')}
