@@ -67,3 +67,11 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); f
 ol.plain { list-style: none; padding: 0; }
 details { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
 summary { cursor: pointer; color: var(--accent); min-height: 32px; }
+
+/* 문항 보기 박스·표·그림 */
+.qbox { border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin: 10px 0; white-space: pre-wrap; font-weight: normal; }
+.qtable { width: auto; margin: 10px 0; border: 1px solid var(--line); font-weight: normal; }
+.qtable th, .qtable td { border: 1px solid var(--line); padding: 4px 10px; text-align: center; }
+.qimg { display: block; max-width: 100%; height: auto; margin: 8px 0; background: #fff; border-radius: 4px; }
+.choices .qimg, ol.plain .qimg { display: inline-block; vertical-align: middle; margin: 4px 0 4px 6px; }
+legend { width: 100%; }

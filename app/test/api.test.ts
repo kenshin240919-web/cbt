@@ -221,3 +221,12 @@ test('오답 다시 풀기: 오답·미응답만 새 시도로, 원래 기록은
   const after = (await c.json('GET', `/api/attempts/${body.id}/result`)).body;
   assert.deepEqual(after.counts, before.counts);
 });
+
+test('문항 표기(rich): 보기 박스·표·그림 변환, HTML은 이스케이프', async () => {
+  const { rich } = await import('../src/pages.ts');
+  assert.equal(rich('<script>x</script>'), '&lt;script&gt;x&lt;/script&gt;');
+  assert.match(rich('문제\n[보기]\nㄱ. a\nㄴ. b\n[/보기]'), /<div class="qbox">ㄱ\. a<br>ㄴ\. b<\/div>/);
+  assert.match(rich('[보기]\n가스 | 하한\nA | 4.0\n[/보기]'), /<th>가스<\/th><th>하한<\/th>.*<td>A<\/td><td>4\.0<\/td>/s);
+  assert.match(rich('{{img:/q-img/p/q1.jpg}}'), /<img class="qimg" src="\/q-img\/p\/q1\.jpg"/);
+  assert.doesNotMatch(rich('{{img:javascript:alert(1)}}'), /<img/);
+});

@@ -15,6 +15,21 @@ export type AdKind = 'display' | 'inarticle';
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 
+// 문항 본문 표기: [보기]…[/보기] 박스(모든 줄에 " | "가 있으면 표), {{img:/q-img/…}} 그림, 줄바꿈
+export function rich(text: string): string {
+  return esc(text)
+    .replace(/\[보기\]\n?([\s\S]*?)\n?\[\/보기\]/g, (_: string, inner: string) => {
+      const rows = inner.split('\n');
+      if (rows.every(r => r.includes(' | '))) {
+        const [head, ...body] = rows.map(r => r.split(' | '));
+        return `<table class="qtable"><thead><tr>${head.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      }
+      return `<div class="qbox">${rows.join('<br>')}</div>`;
+    })
+    .replace(/\{\{img:(\/q-img\/[\w./-]+)\}\}/g, '<img class="qimg" src="$1" alt="문항 그림" loading="lazy">')
+    .replace(/\n/g, '<br>');
+}
+
 export function adsConfig(env: AdEnv) {
   return {
     client: env.ADSENSE_CLIENT ?? '',
@@ -88,8 +103,8 @@ export async function paperPage(c: Ctx, paperId: string) {
     const answers = JSON.parse(q.answers_json) as number[];
     parts.push(`<section class="card">
   <div class="q-subject">${esc(q.subject)}</div>
-  <p><strong>${q.ord}.</strong> ${esc(q.body)}</p>
-  <ol class="plain">${choices.map((ch, k) => `<li>${marks[k] ?? k + 1} ${esc(ch)}</li>`).join('')}</ol>
+  <p><strong>${q.ord}.</strong> ${rich(q.body)}</p>
+  <ol class="plain">${choices.map((ch, k) => `<li>${marks[k] ?? k + 1} ${rich(ch)}</li>`).join('')}</ol>
   <details><summary>정답 및 해설 보기</summary>
     <p><strong>정답: ${answers.length ? answers.map(a => marks[a - 1] ?? a).join(', ') : '전원 정답'}</strong></p>
     ${q.explanation ? `<p>${esc(q.explanation)}</p>` : ''}

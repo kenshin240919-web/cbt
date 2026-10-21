@@ -46,6 +46,21 @@ function fillAds() {
 const QUESTION_AD_EVERY = 10; // 풀이 화면: 10문항마다 1개
 const REVIEW_AD_EVERY = 5; // 오답 해설: 5문항마다 1개
 
+// 문항 본문 표기: [보기]…[/보기] 박스(모든 줄에 " | "가 있으면 표), {{img:/q-img/…}} 그림, 줄바꿈
+function rich(text) {
+  return esc(text)
+    .replace(/\[보기\]\n?([\s\S]*?)\n?\[\/보기\]/g, (_, inner) => {
+      const rows = inner.split('\n');
+      if (rows.every(r => r.includes(' | '))) {
+        const [head, ...body] = rows.map(r => r.split(' | '));
+        return `<table class="qtable"><thead><tr>${head.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>${body.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+      }
+      return `<div class="qbox">${rows.join('<br>')}</div>`;
+    })
+    .replace(/\{\{img:(\/q-img\/[\w./-]+)\}\}/g, '<img class="qimg" src="$1" alt="문항 그림" loading="lazy">')
+    .replace(/\n/g, '<br>');
+}
+
 const MODE = { practice: '연습', exam: '시험' };
 const RESULT = { correct: '정답', wrong: '오답', unanswered: '미응답' };
 
@@ -122,10 +137,10 @@ function solve(attempt) {
       <div class="q-head"><span class="q-subject">${esc(item.subjectName)}</span>
         <label class="mark"><input type="checkbox" class="mark-box" ${item.marked ? 'checked' : ''}> 다시 보기</label></div>
       <fieldset style="border:0;padding:0;margin:0">
-        <legend><strong>${item.ord}.</strong> ${esc(item.body)}</legend>
+        <legend><strong>${item.ord}.</strong> ${rich(item.body)}</legend>
         <ul class="choices">${item.choices.map((ch, i) => `
           <li><label data-choice="${i + 1}"><input type="radio" name="q${item.ord}" value="${i + 1}" ${item.selected === i + 1 ? 'checked' : ''}>
-          <span>${'①②③④⑤⑥'[i] ?? i + 1} ${esc(ch)}</span></label></li>`).join('')}</ul>
+          <span>${'①②③④⑤⑥'[i] ?? i + 1} ${rich(ch)}</span></label></li>`).join('')}</ul>
       </fieldset>
       <div class="fb-slot"></div>
     </section>`;
@@ -247,9 +262,9 @@ async function result(id) {
       ${idx % REVIEW_AD_EVERY === 2 ? ad('inarticle') : ''}
       <section class="card">
         <div class="q-subject">${esc(i.subjectName)} · <strong class="${i.result === 'wrong' ? 'fail' : ''}">${RESULT[i.result]}</strong></div>
-        <p><strong>${i.ord}.</strong> ${esc(i.body)}</p>
+        <p><strong>${i.ord}.</strong> ${rich(i.body)}</p>
         <ul class="choices">${i.choices.map((ch, k) => `<li><label class="${i.answers.includes(k + 1) ? 'is-answer' : i.selected === k + 1 ? 'is-wrong' : ''}">
-          <span>${'①②③④⑤⑥'[k] ?? k + 1} ${esc(ch)}${i.answers.includes(k + 1) ? ' <strong>(정답)</strong>' : ''}${i.selected === k + 1 ? ' <strong>(내 답)</strong>' : ''}</span></label></li>`).join('')}</ul>
+          <span>${'①②③④⑤⑥'[k] ?? k + 1} ${rich(ch)}${i.answers.includes(k + 1) ? ' <strong>(정답)</strong>' : ''}${i.selected === k + 1 ? ' <strong>(내 답)</strong>' : ''}</span></label></li>`).join('')}</ul>
         ${i.explanation ? `<div class="fb ok"><strong>해설</strong><p>${esc(i.explanation)}</p></div>` : ''}
       </section>`).join('') || '<p class="muted">모두 맞혔습니다.</p>'}
     ${misses.length < 3 ? ad('display') : ''}`;
