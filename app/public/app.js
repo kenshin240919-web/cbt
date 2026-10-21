@@ -43,6 +43,26 @@ function fillAds() {
   });
 }
 
+// 전면 광고(비네트)는 이 탭에서 5문제 이상 답한 뒤부터만 허용한다.
+// 그 전에는 모든 링크에 data-google-vignette="false"를 붙여 페이지 이동 때 전면 광고가 끼지 않게 한다.
+const VIGNETTE_AFTER = 5;
+const answeredKeys = (() => { try { return new Set(JSON.parse(sessionStorage.getItem('answered') ?? '[]')); } catch { return new Set(); } })();
+function noteAnswered(key) {
+  if (answeredKeys.has(key)) return;
+  answeredKeys.add(key);
+  try { sessionStorage.setItem('answered', JSON.stringify([...answeredKeys])); } catch { /* 저장 실패해도 학습은 계속 */ }
+  gateVignettes();
+}
+function gateVignettes() {
+  const allow = answeredKeys.size >= VIGNETTE_AFTER;
+  document.querySelectorAll('a[href]').forEach(a => {
+    if (allow) a.removeAttribute('data-google-vignette');
+    else a.setAttribute('data-google-vignette', 'false');
+  });
+}
+new MutationObserver(gateVignettes).observe(document.body, { childList: true, subtree: true });
+gateVignettes();
+
 const QUESTION_AD_EVERY = 10; // 풀이 화면: 10문항마다 1개
 const REVIEW_AD_EVERY = 5; // 오답 해설: 5문항마다 1개
 
@@ -223,6 +243,7 @@ function solve(attempt) {
       if (r.ok) {
         item.revision = r.data.revision;
         failed = false;
+        if (sent.selected !== null) noteAnswered(`${attempt.id}:${ord}`);
         if (attempt.mode === 'practice') { item.feedback = r.data.feedback; paintFeedback(item); }
         // 저장 도중 또 바꿨다면 최신 값으로 한 번 더 저장
         if (item.selected !== sent.selected || item.marked !== sent.marked) schedule(ord);
