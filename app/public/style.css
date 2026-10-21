@@ -76,3 +76,6 @@ summary { cursor: pointer; color: var(--accent); min-height: 32px; }
 .qimg { display: block; max-width: 100%; height: auto; margin: 8px 0; background: #fff; border-radius: 4px; }
 .choices .qimg, ol.plain .qimg { display: inline-block; vertical-align: middle; margin: 4px 0 4px 6px; }
 legend { width: 100%; }
+
+.done-card { text-align: center; padding: 40px 16px; }
+.big-btn { font-size: 1.1rem; padding: 14px 28px; margin-top: 12px; }

@@ -67,7 +67,7 @@ ${opts.canonical ? `<link rel="canonical" href="${esc(opts.canonical)}">` : ''}
 ${client ? `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${esc(client)}" crossorigin="anonymous"></script>` : ''}
 </head>
 <body>
-<header class="top"><a href="/" class="brand">${esc(siteName(env))}</a><nav><a href="/#/records">내 기록</a></nav></header>
+<header class="top"><a href="/#/" class="brand">${esc(siteName(env))}</a><nav><a href="/#/records">내 기록</a></nav></header>
 <main>${opts.body}</main>
 <footer class="foot"><a href="/privacy">개인정보처리방침</a></footer>
 ${client ? `<script>document.querySelectorAll('ins.adsbygoogle').forEach(function(){(adsbygoogle=window.adsbygoogle||[]).push({})});</script>` : ''}

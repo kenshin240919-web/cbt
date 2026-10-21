@@ -232,9 +232,21 @@ function solve(attempt) {
       (unanswered.length ? `미응답: ${unanswered.slice(0, 15).join(', ')}${unanswered.length > 15 ? ' …' : ''}\n` : '') + '제출하면 답안을 바꿀 수 없습니다. 제출할까요?';
     if (!confirm(msg)) return;
     const r = await api('POST', `/api/attempts/${attempt.id}/submit`);
-    if (r.ok) location.hash = `#/r/${attempt.id}`;
+    if (r.ok) submitted(attempt.id);
     else alert('제출하지 못했습니다. 다시 시도해 주세요.');
   }
+}
+
+// 제출 완료 화면. "결과 보기"를 실제 링크(페이지 이동)로 두어야 구글 전면 광고(비네트)가 끼어들 수 있다.
+// 버튼 클릭에 맞춰 광고를 직접 띄우는 것은 애드센스 정책 위반이므로 하지 않는다.
+function submitted(id) {
+  view.innerHTML = `
+    <div class="card done-card">
+      <h1>제출 완료</h1>
+      <p>채점이 끝났습니다.</p>
+      <a class="btn primary big-btn" href="/r/${esc(id)}">채점 결과 보기</a>
+    </div>`;
+  window.scrollTo(0, 0);
 }
 
 // ---------- 결과 ----------
@@ -271,7 +283,7 @@ async function result(id) {
   fillAds();
   view.querySelectorAll('[data-retry]').forEach(btn => btn.addEventListener('click', async () => {
     const res = await api('POST', `/api/attempts/${id}/retry`, { include: JSON.parse(btn.dataset.retry), mode: 'practice' });
-    if (res.ok) location.hash = `#/a/${res.data.id}`;
+    if (res.ok) location.href = `/#/a/${res.data.id}`;
   }));
 }
 
@@ -283,7 +295,7 @@ async function records() {
     <p class="muted">로그인 전 기록은 이 브라우저에만 연결됩니다. 회원가입 시 계정으로 옮길 수 있습니다(예정).</p>
     <div class="card"><table><thead><tr><th>회차</th><th>모드</th><th>점수</th><th>정답/오답/미응답</th><th>날짜</th></tr></thead><tbody>
     ${rows.map(a => `<tr>
-      <td><a href="#/${a.status === 'graded' ? 'r' : 'a'}/${a.id}">${esc(a.paper_title)}</a>${a.parent_attempt_id ? ' <span class="badge">다시 풀기</span>' : ''}</td>
+      <td><a href="${a.status === 'graded' ? `/r/${a.id}` : `/#/a/${a.id}`}">${esc(a.paper_title)}</a>${a.parent_attempt_id ? ' <span class="badge">다시 풀기</span>' : ''}</td>
       <td>${MODE[a.mode]}</td>
       <td>${a.status !== 'graded' ? '진행 중' : a.score ? `${a.score.display}점 ${a.verdict === 'pass' ? '<span class="pass">합격</span>' : '<span class="fail">불합격</span>'}` : '-'}</td>
       <td>${a.status === 'graded' ? `${a.correct}/${a.wrong}/${a.unanswered}` : ''}</td>
@@ -295,6 +307,13 @@ async function records() {
 
 // ---------- 라우터 ----------
 async function route() {
+  // 결과 페이지만 실제 경로(/r/:id): 페이지 이동이 일어나야 전면 광고가 나올 수 있다
+  const path = location.pathname.match(/^\/r\/([\w-]+)$/);
+  if (path) {
+    view.innerHTML = '<p class="muted">불러오는 중…</p>';
+    try { await result(path[1]); } catch { view.innerHTML = '<p>연결에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>'; }
+    return;
+  }
   const [, page, id] = location.hash.split('/');
   view.innerHTML = '<p class="muted">불러오는 중…</p>';
   try {
