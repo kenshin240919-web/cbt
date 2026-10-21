@@ -121,8 +121,9 @@ export async function paperPage(c: Ctx, paperId: string) {
 <h1>${esc(paper.title)} 기출문제 및 해설</h1>
 <p class="muted">${esc(paper.certification)} · ${qs.length}문항 · ${esc(SOURCE_LABEL[paper.source_type] ?? paper.source_type)}${paper.source_note ? ` · ${esc(paper.source_note)}` : ''}</p>
 <div class="card row">
-  <a class="btn primary" href="/#/start/${esc(paper.id)}/exam">CBT 시험모드로 풀기</a>
-  <a class="btn" href="/#/start/${esc(paper.id)}/practice">연습모드로 풀기</a>
+  <a class="btn primary" href="/start/${encodeURIComponent(paper.id)}/exam">CBT 시험모드로 풀기</a>
+  <a class="btn" href="/start/${encodeURIComponent(paper.id)}/practice">연습모드로 풀기</a>
+  <a class="btn" href="/s/${encodeURIComponent(paper.id)}">과목별로 풀기</a>
 </div>
 ${parts.join('\n')}
 ${adHtml(c.env, 'display')}`;

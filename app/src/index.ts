@@ -45,6 +45,7 @@ app.onError((err, c) => {
 type AttemptRow = {
   id: string; user_id: string | null; guest_hash: string | null; paper_id: string; mode: 'practice' | 'exam';
   policy_id: string; status: string; parent_attempt_id: string | null; started_at: string; submitted_at: string | null;
+  subject_id: string | null;
 };
 
 type ItemRow = {
@@ -89,6 +90,7 @@ function attemptView(attempt: AttemptRow, paperTitle: string, items: ItemRow[]) 
     mode: attempt.mode,
     status: attempt.status,
     parentAttemptId: attempt.parent_attempt_id,
+    subjectId: attempt.subject_id,
     startedAt: attempt.started_at,
     items: items.map(item => ({
       ord: item.ord,
@@ -115,8 +117,27 @@ app.get('/api/papers', async c => {
   return c.json({ papers: results });
 });
 
+// 회차의 과목 목록(과목별 풀기 선택용)
+async function paperSubjects(db: D1Database, paperId: string) {
+  const { results } = await db.prepare(
+    `SELECT s.id, s.name, COUNT(*) AS question_count
+       FROM exam_items ei JOIN question_versions qv ON qv.id = ei.question_version_id
+       JOIN questions q ON q.id = qv.question_id JOIN subjects s ON s.id = q.subject_id
+      WHERE ei.paper_id = ? GROUP BY s.id, s.name ORDER BY MIN(ei.ord)`,
+  ).bind(paperId).all<{ id: string; name: string; question_count: number }>();
+  return results;
+}
+
+app.get('/api/papers/:id/subjects', async c => {
+  const paper = await c.env.DB.prepare(`SELECT id, title FROM exam_papers WHERE id = ? AND status = 'published'`)
+    .bind(c.req.param('id')).first<{ id: string; title: string }>();
+  if (!paper) return c.json({ error: 'paper_not_found' }, 404);
+  return c.json({ paper, subjects: await paperSubjects(c.env.DB, paper.id) });
+});
+
 app.post('/api/attempts', async c => {
-  const body = await c.req.json<{ paperId?: string; mode?: string }>().catch(() => ({} as { paperId?: string; mode?: string }));
+  type StartBody = { paperId?: string; mode?: string; subjectId?: string };
+  const body = await c.req.json<StartBody>().catch(() => ({} as StartBody));
   if (body.mode !== 'practice' && body.mode !== 'exam') return c.json({ error: 'invalid_mode' }, 400);
 
   const paper = await c.env.DB.prepare(
@@ -125,20 +146,25 @@ app.post('/api/attempts', async c => {
   ).bind(body.paperId ?? '').first<{ id: string; title: string; is_sample: number; policy_id: string }>();
   if (!paper) return c.json({ error: 'paper_not_found' }, 404);
 
+  const subjectId = body.subjectId ?? null;
+  if (subjectId && !(await paperSubjects(c.env.DB, paper.id)).some(s => s.id === subjectId)) {
+    return c.json({ error: 'subject_not_found' }, 404);
+  }
+
   const owner = c.get('owner');
   const id = crypto.randomUUID();
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO attempts (id, user_id, guest_hash, paper_id, mode, policy_id, status, started_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?)`,
-    ).bind(id, owner.userId, owner.userId ? null : owner.guestHash, paper.id, body.mode, paper.policy_id, now()),
+      `INSERT INTO attempts (id, user_id, guest_hash, paper_id, mode, policy_id, status, started_at, subject_id)
+       VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`,
+    ).bind(id, owner.userId, owner.userId ? null : owner.guestHash, paper.id, body.mode, paper.policy_id, now(), subjectId),
     // 시작 시점의 문항 버전을 고정(이후 문항이 정정돼도 이 시도는 영향 없음)
     c.env.DB.prepare(
       `INSERT INTO attempt_items (attempt_id, ord, question_version_id, subject_id)
        SELECT ?, ei.ord, ei.question_version_id, q.subject_id
          FROM exam_items ei JOIN question_versions qv ON qv.id = ei.question_version_id JOIN questions q ON q.id = qv.question_id
-        WHERE ei.paper_id = ?`,
-    ).bind(id, paper.id),
+        WHERE ei.paper_id = ? AND (? IS NULL OR q.subject_id = ?)`,
+    ).bind(id, paper.id, subjectId, subjectId),
   ]);
 
   const attempt = (await loadOwnedAttempt(c, id))!;
@@ -198,7 +224,8 @@ async function storeGrade(db: D1Database, attempt: AttemptRow): Promise<GradeRes
   const result = grade(
     items.map(i => ({ subjectId: i.subject_id, subjectName: i.subject_name, answers: JSON.parse(i.answers_json), selected: i.selected })),
     POLICIES[attempt.policy_id],
-    attempt.parent_attempt_id === null,
+    // 다시 풀기·과목별 풀기는 일부 문항만 풀었으므로 합격 판정을 하지 않는다(과목 점수·과락만)
+    attempt.parent_attempt_id === null && attempt.subject_id === null,
   );
   await db.batch([
     db.prepare(
@@ -235,7 +262,13 @@ app.get('/api/attempts/:id/result', async c => {
   return c.json({
     id: attempt.id,
     mode: attempt.mode,
+    paperId: attempt.paper_id,
     parentAttemptId: attempt.parent_attempt_id,
+    subjectId: attempt.subject_id,
+    // 과목별 풀기: 다음 과목 바로가기
+    nextSubject: attempt.subject_id && !attempt.parent_attempt_id
+      ? (await paperSubjects(c.env.DB, attempt.paper_id)).find((s, i, all) => all[i - 1]?.id === attempt.subject_id) ?? null
+      : null,
     startedAt: attempt.started_at,
     submittedAt: attempt.submitted_at,
     score: g!.raw_score === null ? null : { raw: g!.raw_score, display: formatScore(g!.raw_score) },
@@ -274,9 +307,9 @@ app.post('/api/attempts/:id/retry', async c => {
   const owner = c.get('owner');
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO attempts (id, user_id, guest_hash, paper_id, mode, policy_id, status, parent_attempt_id, started_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`,
-    ).bind(id, parent.user_id, parent.guest_hash ?? owner.guestHash, parent.paper_id, mode, parent.policy_id, parent.id, now()),
+      `INSERT INTO attempts (id, user_id, guest_hash, paper_id, mode, policy_id, status, parent_attempt_id, started_at, subject_id)
+       VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, ?, ?)`,
+    ).bind(id, parent.user_id, parent.guest_hash ?? owner.guestHash, parent.paper_id, mode, parent.policy_id, parent.id, now(), parent.subject_id),
     ...picked.map((item, idx) =>
       c.env.DB.prepare(
         `INSERT INTO attempt_items (attempt_id, ord, question_version_id, subject_id)
@@ -291,6 +324,7 @@ app.get('/api/me/attempts', async c => {
   const owner = c.get('owner');
   const { results } = await c.env.DB.prepare(
     `SELECT a.id, a.mode, a.status, a.parent_attempt_id, a.started_at, a.submitted_at, p.title AS paper_title,
+            (SELECT name FROM subjects WHERE id = a.subject_id) AS subject_name,
             g.raw_score, g.verdict, g.correct, g.wrong, g.unanswered
        FROM attempts a JOIN exam_papers p ON p.id = a.paper_id LEFT JOIN grading_results g ON g.attempt_id = a.id
       WHERE (a.user_id IS NOT NULL AND a.user_id = ?) OR (a.guest_hash IS NOT NULL AND a.guest_hash = ?)

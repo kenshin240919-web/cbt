@@ -82,6 +82,7 @@ async function home() {
         <div class="row" style="margin-top:10px">
           <button data-start="${esc(paper.id)}" data-mode="practice">연습모드 <span class="muted">(바로 정답·해설)</span></button>
           <button class="primary" data-start="${esc(paper.id)}" data-mode="exam">시험모드</button>
+          <a class="btn" href="/s/${esc(paper.id)}">과목별로 풀기</a>
         </div>
       </div>`).join('') || '<p class="muted">등록된 회차가 없습니다.</p>'}
     ${ad('display')}`;
@@ -92,6 +93,31 @@ async function home() {
     if (r.ok) location.hash = `#/a/${r.data.id}`;
     else { alert('시작하지 못했습니다. 잠시 후 다시 시도해 주세요.'); btn.disabled = false; }
   }));
+}
+
+// ---------- 과목 선택 ----------
+// 과목별 풀기 링크는 실제 페이지 이동(/start/…)이라 이동 사이에 구글 전면 광고가 들어갈 수 있다
+const startPath = (paperId, mode, subjectId) =>
+  `/start/${encodeURIComponent(paperId)}/${mode}${subjectId ? `/${encodeURIComponent(subjectId)}` : ''}`;
+
+async function subjects(paperId) {
+  const r = await api('GET', `/api/papers/${encodeURIComponent(paperId)}/subjects`);
+  if (!r.ok) { view.innerHTML = '<p>회차를 찾을 수 없습니다.</p>'; return; }
+  const { paper, subjects: list } = r.data;
+  view.innerHTML = `
+    <h1>${esc(paper.title)}</h1>
+    <p class="muted">과목을 골라 과목마다 풀고 채점합니다. 과목당 40점 미만이면 과락입니다.</p>
+    ${list.map((s, i) => `
+      ${i === 3 ? ad('display') : ''}
+      <div class="card">
+        <strong>${i + 1}과목 · ${esc(s.name)}</strong> <span class="muted">${s.question_count}문항</span>
+        <div class="row" style="margin-top:10px">
+          <a class="btn" href="${startPath(paper.id, 'practice', s.id)}">연습모드</a>
+          <a class="btn primary" href="${startPath(paper.id, 'exam', s.id)}">시험모드</a>
+        </div>
+      </div>`).join('')}
+    ${ad('display')}`;
+  fillAds();
 }
 
 // ---------- 풀이 ----------
@@ -255,10 +281,14 @@ async function result(id) {
   if (!r.ok) { view.innerHTML = '<p>결과를 찾을 수 없습니다.</p>'; return; }
   const d = r.data;
   const misses = d.items.filter(i => i.result !== 'correct');
+  const subj = d.subjectId && !d.parentAttemptId ? d.subjects[0] : null; // 과목별 풀기 결과
   view.innerHTML = `
-    <h1>채점 결과 <span class="badge">${MODE[d.mode]}모드${d.parentAttemptId ? ' · 다시 풀기' : ''}</span></h1>
+    <h1>${subj ? `${esc(subj.name)} 채점 결과` : '채점 결과'} <span class="badge">${MODE[d.mode]}모드${d.parentAttemptId ? ' · 다시 풀기' : ''}</span></h1>
     <div class="card">
-      ${d.score ? `<div class="big">${d.score.display}점 <span class="${d.verdict}">${d.verdict === 'pass' ? '합격' : '불합격'}</span></div>` : '<div class="muted">일부 문항 다시 풀기는 합격 판정을 하지 않습니다.</div>'}
+      ${d.score ? `<div class="big">${d.score.display}점 <span class="${d.verdict}">${d.verdict === 'pass' ? '합격' : '불합격'}</span></div>`
+        : subj ? `<div class="big">${subj.display}점 <span class="${subj.failed ? 'fail' : 'pass'}">${subj.failed ? '과락' : '과락 면함'}</span></div>
+          <p class="muted">과목별 풀기는 과목 점수만 냅니다. 최종 합격은 전 과목 평균 60점 이상 + 모든 과목 40점 이상입니다.</p>`
+        : '<div class="muted">일부 문항 다시 풀기는 합격 판정을 하지 않습니다.</div>'}
       <p>정답 ${d.counts.correct} · 오답 ${d.counts.wrong} · 미응답 ${d.counts.unanswered}</p>
       <table><thead><tr><th>과목</th><th>맞힌 수</th><th>점수</th><th></th></tr></thead><tbody>
         ${d.subjects.map(s => `<tr><td>${esc(s.name)}</td><td>${s.correct}/${s.total}</td><td>${s.display}</td><td>${s.failed && d.score ? '<span class="fail">과락</span>' : ''}</td></tr>`).join('')}
@@ -269,6 +299,10 @@ async function result(id) {
         ${d.items.some(i => i.marked) ? `<button data-retry='["marked"]'>다시 보기 표시만</button>` : ''}
       </div>
     </div>
+    ${subj ? `<div class="card row next-card">
+      ${d.nextSubject ? `<a class="btn primary" href="${startPath(d.paperId, d.mode, d.nextSubject.id)}">다음 과목: ${esc(d.nextSubject.name)} 풀기 →</a>` : '<strong>마지막 과목까지 풀었습니다.</strong>'}
+      <a class="btn" href="/s/${esc(d.paperId)}">과목 목록</a>
+    </div>` : ''}
     <h2>틀린 문제 · 미응답 (${misses.length})</h2>
     ${misses.map((i, idx) => `
       ${idx % REVIEW_AD_EVERY === 2 ? ad('inarticle') : ''}
@@ -295,7 +329,7 @@ async function records() {
     <p class="muted">로그인 전 기록은 이 브라우저에만 연결됩니다. 회원가입 시 계정으로 옮길 수 있습니다(예정).</p>
     <div class="card"><table><thead><tr><th>회차</th><th>모드</th><th>점수</th><th>정답/오답/미응답</th><th>날짜</th></tr></thead><tbody>
     ${rows.map(a => `<tr>
-      <td><a href="${a.status === 'graded' ? `/r/${a.id}` : `/#/a/${a.id}`}">${esc(a.paper_title)}</a>${a.parent_attempt_id ? ' <span class="badge">다시 풀기</span>' : ''}</td>
+      <td><a href="${a.status === 'graded' ? `/r/${a.id}` : `/#/a/${a.id}`}">${esc(a.paper_title)}</a>${a.subject_name ? ` <span class="badge">${esc(a.subject_name)}</span>` : ''}${a.parent_attempt_id ? ' <span class="badge">다시 풀기</span>' : ''}</td>
       <td>${MODE[a.mode]}</td>
       <td>${a.status !== 'graded' ? '진행 중' : a.score ? `${a.score.display}점 ${a.verdict === 'pass' ? '<span class="pass">합격</span>' : '<span class="fail">불합격</span>'}` : '-'}</td>
       <td>${a.status === 'graded' ? `${a.correct}/${a.wrong}/${a.unanswered}` : ''}</td>
@@ -309,6 +343,24 @@ async function records() {
 async function route() {
   // 결과 페이지만 실제 경로(/r/:id): 페이지 이동이 일어나야 전면 광고가 나올 수 있다
   const path = location.pathname.match(/^\/r\/([\w-]+)$/);
+  const subjectsPath = location.pathname.match(/^\/s\/([^/]+)$/);
+  const startMatch = location.pathname.match(/^\/start\/([^/]+)\/(practice|exam)(?:\/([^/]+))?$/);
+  if (subjectsPath) {
+    view.innerHTML = '<p class="muted">불러오는 중…</p>';
+    try { await subjects(decodeURIComponent(subjectsPath[1])); } catch { view.innerHTML = '<p>연결에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>'; }
+    return;
+  }
+  if (startMatch) {
+    view.innerHTML = '<p class="muted">시험지를 준비하는 중…</p>';
+    const [, paperId, mode, subjectId] = startMatch;
+    const r = await api('POST', '/api/attempts', {
+      paperId: decodeURIComponent(paperId), mode, ...(subjectId ? { subjectId: decodeURIComponent(subjectId) } : {}),
+    }).catch(() => ({ ok: false }));
+    if (!r.ok) { view.innerHTML = '<p>시작하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>'; return; }
+    // 새로고침해도 같은 시험이 다시 만들어지지 않도록 주소를 풀이 화면으로 바꾼다(페이지 재로딩 없음)
+    history.replaceState(null, '', `/#/a/${r.data.id}`);
+    return route();
+  }
   if (path) {
     view.innerHTML = '<p class="muted">불러오는 중…</p>';
     try { await result(path[1]); } catch { view.innerHTML = '<p>연결에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>'; }

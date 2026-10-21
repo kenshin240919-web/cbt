@@ -79,3 +79,4 @@ legend { width: 100%; }
 
 .done-card { text-align: center; padding: 40px 16px; }
 .big-btn { font-size: 1.1rem; padding: 14px 28px; margin-top: 12px; }
+.next-card { justify-content: space-between; }

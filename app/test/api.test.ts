@@ -19,8 +19,10 @@ before(async () => {
   tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cbt-test-'));
   proxy = await getPlatformProxy<{ DB: D1Database }>({ persist: { path: tmp } });
   env = proxy.env;
-  const migration = fs.readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8');
-  for (const s of statements(migration)) await env.DB.prepare(s).run();
+  const dir = new URL('../migrations/', import.meta.url);
+  for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.sql')).sort()) {
+    for (const s of statements(fs.readFileSync(new URL(f, dir), 'utf8'))) await env.DB.prepare(s).run();
+  }
   const seed = execFileSync('node', ['scripts/import-paper.mjs', 'content/sample-paper.json'], { encoding: 'utf8' });
   for (const s of statements(seed)) await env.DB.prepare(s).run();
 });
@@ -229,4 +231,29 @@ test('문항 표기(rich): 보기 박스·표·그림 변환, HTML은 이스케�
   assert.match(rich('[보기]\n가스 | 하한\nA | 4.0\n[/보기]'), /<th>가스<\/th><th>하한<\/th>.*<td>A<\/td><td>4\.0<\/td>/s);
   assert.match(rich('{{img:/q-img/p/q1.jpg}}'), /<img class="qimg" src="\/q-img\/p\/q1\.jpg"/);
   assert.doesNotMatch(rich('{{img:javascript:alert(1)}}'), /<img/);
+});
+
+test('과목별 풀기: 해당 과목 문항만, 과목 점수만(합격 판정 없음), 다음 과목 안내', async () => {
+  const c = new Client();
+  const subs = (await c.json('GET', '/api/papers/isafety-sample/subjects')).body.subjects;
+  assert.equal(subs.length, 6);
+  assert.equal(subs[0].question_count, 2);
+  const start = await c.json('POST', '/api/attempts', { paperId: 'isafety-sample', mode: 'exam', subjectId: subs[0].id });
+  assert.equal(start.status, 201);
+  assert.deepEqual(start.body.items.map((i: { ord: number }) => i.ord), [1, 2]);
+  assert.equal(start.body.subjectId, subs[0].id);
+  await c.json('PUT', `/api/attempts/${start.body.id}/answers/1`, { selected: 1, baseRevision: 0 });
+  await c.json('POST', `/api/attempts/${start.body.id}/submit`);
+  const r = (await c.json('GET', `/api/attempts/${start.body.id}/result`)).body;
+  assert.equal(r.verdict, null);
+  assert.equal(r.subjects.length, 1);
+  assert.equal(r.subjects[0].display, '50');
+  assert.equal(r.nextSubject.id, subs[1].id);
+
+  const last = await c.json('POST', '/api/attempts', { paperId: 'isafety-sample', mode: 'practice', subjectId: subs[5].id });
+  assert.deepEqual(last.body.items.map((i: { ord: number }) => i.ord), [11, 12]);
+  await c.json('POST', `/api/attempts/${last.body.id}/submit`);
+  assert.equal((await c.json('GET', `/api/attempts/${last.body.id}/result`)).body.nextSubject, null);
+
+  assert.equal((await c.json('POST', '/api/attempts', { paperId: 'isafety-sample', mode: 'exam', subjectId: 'nope' })).status, 404);
 });
