@@ -276,12 +276,48 @@ function submitted(id) {
 }
 
 // ---------- 결과 ----------
+// 오답 해설 카드 목록(광고: 3번째 앞, 이후 5개마다)
+function missCards(misses) {
+  return misses.map((i, idx) => `
+      ${idx % REVIEW_AD_EVERY === 2 ? ad('inarticle') : ''}
+      <section class="card">
+        <div class="q-subject">${esc(i.subjectName)} · <strong class="${i.result === 'wrong' ? 'fail' : ''}">${RESULT[i.result]}</strong></div>
+        <p><strong>${i.ord}.</strong> ${rich(i.body)}</p>
+        <ul class="choices">${i.choices.map((ch, k) => `<li><label class="${i.answers.includes(k + 1) ? 'is-answer' : i.selected === k + 1 ? 'is-wrong' : ''}">
+          <span>${'①②③④⑤⑥'[k] ?? k + 1} ${rich(ch)}${i.answers.includes(k + 1) ? ' <strong>(정답)</strong>' : ''}${i.selected === k + 1 ? ' <strong>(내 답)</strong>' : ''}</span></label></li>`).join('')}</ul>
+        ${i.explanation ? `<div class="fb ok"><strong>해설</strong><p>${rich(i.explanation)}</p></div>` : ''}
+      </section>`).join('') || '<p class="muted">모두 맞혔습니다.</p>';
+}
+
+// 회차 전체 시험의 과목별 오답 해설 페이지(/r/:id/:과목번호). 과목 이동은 실제 페이지 이동(전면 광고 기회)
+async function resultSubject(id, k) {
+  const r = await api('GET', `/api/attempts/${id}/result`);
+  if (!r.ok) { view.innerHTML = '<p>결과를 찾을 수 없습니다.</p>'; return; }
+  const d = r.data;
+  const subj = d.subjects[k - 1];
+  if (!subj) { view.innerHTML = '<p>과목을 찾을 수 없습니다.</p>'; return; }
+  const misses = d.items.filter(i => i.result !== 'correct' && i.subjectName === subj.name);
+  view.innerHTML = `
+    <h1>${esc(subj.name)} 오답 해설 <span class="badge">${k}/${d.subjects.length}과목</span></h1>
+    <div class="card"><div class="big" style="font-size:1.4rem">${subj.display}점 <span class="${subj.failed ? 'fail' : 'pass'}">${subj.failed ? '과락' : '통과'}</span></div>
+      <p class="muted">맞힌 문제 ${subj.correct}/${subj.total} · 틀리거나 안 푼 문제 ${misses.length}</p></div>
+    ${missCards(misses)}
+    ${ad('display')}
+    <nav class="card row next-card">
+      <a class="btn" href="/r/${esc(id)}">← 결과 요약</a>
+      ${k < d.subjects.length ? `<a class="btn primary" href="/r/${esc(id)}/${k + 1}">다음 과목 해설: ${esc(d.subjects[k].name)} →</a>` : '<strong>마지막 과목입니다.</strong>'}
+    </nav>`;
+  fillAds();
+}
+
 async function result(id) {
   const r = await api('GET', `/api/attempts/${id}/result`);
   if (!r.ok) { view.innerHTML = '<p>결과를 찾을 수 없습니다.</p>'; return; }
   const d = r.data;
   const misses = d.items.filter(i => i.result !== 'correct');
   const subj = d.subjectId && !d.parentAttemptId ? d.subjects[0] : null; // 과목별 풀기 결과
+  const full = !d.subjectId && !d.parentAttemptId; // 회차 전체 시험: 해설은 과목별 페이지로 나눈다
+  const missBySubject = name => d.items.filter(i => i.result !== 'correct' && i.subjectName === name).length;
   view.innerHTML = `
     <h1>${subj ? `${esc(subj.name)} 채점 결과` : '채점 결과'} <span class="badge">${MODE[d.mode]}모드${d.parentAttemptId ? ' · 다시 풀기' : ''}</span></h1>
     <div class="card">
@@ -291,7 +327,7 @@ async function result(id) {
         : '<div class="muted">일부 문항 다시 풀기는 합격 판정을 하지 않습니다.</div>'}
       <p>정답 ${d.counts.correct} · 오답 ${d.counts.wrong} · 미응답 ${d.counts.unanswered}</p>
       <table><thead><tr><th>과목</th><th>맞힌 수</th><th>점수</th><th></th></tr></thead><tbody>
-        ${d.subjects.map(s => `<tr><td>${esc(s.name)}</td><td>${s.correct}/${s.total}</td><td>${s.display}</td><td>${s.failed && d.score ? '<span class="fail">과락</span>' : ''}</td></tr>`).join('')}
+        ${d.subjects.map((s, k) => `<tr><td>${full ? `<a href="/r/${esc(id)}/${k + 1}">${esc(s.name)}</a>` : esc(s.name)}</td><td>${s.correct}/${s.total}</td><td>${s.display}</td><td>${s.failed && d.score ? '<span class="fail">과락</span>' : ''}</td></tr>`).join('')}
       </tbody></table>
       <div class="row" style="margin-top:12px">
         ${d.counts.wrong + d.counts.unanswered ? `<button class="primary" data-retry='["wrong","unanswered"]'>오답·미응답 다시 풀기</button>` : ''}
@@ -303,17 +339,18 @@ async function result(id) {
       ${d.nextSubject ? `<a class="btn primary" href="${startPath(d.paperId, d.mode, d.nextSubject.id)}">다음 과목: ${esc(d.nextSubject.name)} 풀기 →</a>` : '<strong>마지막 과목까지 풀었습니다.</strong>'}
       <a class="btn" href="/s/${esc(d.paperId)}">과목 목록</a>
     </div>` : ''}
+    ${full ? `
+    <h2>과목별 오답 해설</h2>
+    ${d.subjects.map((s, k) => `
+      ${k === 3 ? ad('display') : ''}
+      <a class="card subject-link" href="/r/${esc(id)}/${k + 1}">
+        <span><strong>${k + 1}과목 · ${esc(s.name)}</strong><br><span class="muted">${s.display}점 · 틀리거나 안 푼 문제 ${missBySubject(s.name)}개</span></span>
+        <span aria-hidden="true">→</span>
+      </a>`).join('')}
+    ${ad('display')}` : `
     <h2>틀린 문제 · 미응답 (${misses.length})</h2>
-    ${misses.map((i, idx) => `
-      ${idx % REVIEW_AD_EVERY === 2 ? ad('inarticle') : ''}
-      <section class="card">
-        <div class="q-subject">${esc(i.subjectName)} · <strong class="${i.result === 'wrong' ? 'fail' : ''}">${RESULT[i.result]}</strong></div>
-        <p><strong>${i.ord}.</strong> ${rich(i.body)}</p>
-        <ul class="choices">${i.choices.map((ch, k) => `<li><label class="${i.answers.includes(k + 1) ? 'is-answer' : i.selected === k + 1 ? 'is-wrong' : ''}">
-          <span>${'①②③④⑤⑥'[k] ?? k + 1} ${rich(ch)}${i.answers.includes(k + 1) ? ' <strong>(정답)</strong>' : ''}${i.selected === k + 1 ? ' <strong>(내 답)</strong>' : ''}</span></label></li>`).join('')}</ul>
-        ${i.explanation ? `<div class="fb ok"><strong>해설</strong><p>${rich(i.explanation)}</p></div>` : ''}
-      </section>`).join('') || '<p class="muted">모두 맞혔습니다.</p>'}
-    ${misses.length < 3 ? ad('display') : ''}`;
+    ${missCards(misses)}
+    ${misses.length < 3 ? ad('display') : ''}`}`;
   fillAds();
   view.querySelectorAll('[data-retry]').forEach(btn => btn.addEventListener('click', async () => {
     const res = await api('POST', `/api/attempts/${id}/retry`, { include: JSON.parse(btn.dataset.retry), mode: 'practice' });
@@ -343,6 +380,12 @@ async function records() {
 async function route() {
   // 결과 페이지만 실제 경로(/r/:id): 페이지 이동이 일어나야 전면 광고가 나올 수 있다
   const path = location.pathname.match(/^\/r\/([\w-]+)$/);
+  const subjResult = location.pathname.match(/^\/r\/([\w-]+)\/(\d+)$/);
+  if (subjResult) {
+    view.innerHTML = '<p class="muted">불러오는 중…</p>';
+    try { await resultSubject(subjResult[1], Number(subjResult[2])); } catch { view.innerHTML = '<p>연결에 실패했습니다. 잠시 후 다시 시도해 주세요.</p>'; }
+    return;
+  }
   const subjectsPath = location.pathname.match(/^\/s\/([^/]+)$/);
   const startMatch = location.pathname.match(/^\/start\/([^/]+)\/(practice|exam)(?:\/([^/]+))?$/);
   if (subjectsPath) {

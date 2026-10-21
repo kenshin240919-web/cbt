@@ -53,7 +53,7 @@ function siteName(env: AdEnv) {
   return env.SITE_NAME || 'CBT 기출 학습';
 }
 
-function layout(env: AdEnv, opts: { title: string; description: string; canonical?: string; body: string }) {
+function layout(env: AdEnv, opts: { title: string; description: string; canonical?: string; head?: string; body: string }) {
   const { client } = adsConfig(env);
   return `<!doctype html>
 <html lang="ko">
@@ -63,6 +63,9 @@ function layout(env: AdEnv, opts: { title: string; description: string; canonica
 <title>${esc(opts.title)}</title>
 <meta name="description" content="${esc(opts.description)}">
 ${opts.canonical ? `<link rel="canonical" href="${esc(opts.canonical)}">` : ''}
+${opts.head ?? ''}
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="/style.css">
 ${client ? `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${esc(client)}" crossorigin="anonymous"></script>` : ''}
 </head>
@@ -79,30 +82,42 @@ type PaperRow = { id: string; title: string; certification: string; exam_date: s
 type QRow = { ord: number; subject: string; body: string; choices_json: string; answers_json: string; explanation: string | null };
 
 const SOURCE_LABEL: Record<string, string> = { official: '공식 공개 기출', restored: '복원 기출', original: '모의고사', sample: '샘플' };
-const AD_EVERY = 5; // 해설 페이지: 5문항마다 콘텐츠 내 광고 1개
 
 // 회차별 기출 해설 페이지. 정답·해설은 접힌 상태로 제공(먼저 풀어보도록), 문항 사이에 광고.
-export async function paperPage(c: Ctx, paperId: string) {
+export const PER_PAGE = 5; // 해설 페이지: 5문항씩 한 페이지
+
+// 회차별 기출 해설 페이지(5문항씩 나눔). 정답·해설은 접힌 상태로 제공(먼저 풀어보도록).
+// 페이지마다 광고 2개(3번째 문항 뒤 콘텐츠 내 + 페이지 끝), 페이지 이동은 실제 링크라 전면 광고 기회가 된다.
+export async function paperPage(c: Ctx, paperId: string, pageParam?: string) {
+  const notFound = () => c.html(layout(c.env, { title: '찾을 수 없음', description: '', body: '<h1>페이지를 찾을 수 없습니다</h1>' }), 404);
+  const page = pageParam === undefined ? 1 : Number(pageParam);
+  if (!/^\d+$/.test(pageParam ?? '1') || page < 1) return notFound();
+  if (pageParam !== undefined && page === 1) return c.redirect(`/p/${encodeURIComponent(paperId)}`, 301); // 1페이지는 대표 주소로
+
   const paper = await c.env.DB.prepare(
     `SELECT p.id, p.title, p.exam_date, p.source_type, p.source_note, c.name AS certification
        FROM exam_papers p JOIN certifications c ON c.id = p.certification_id WHERE p.id = ? AND p.status = 'published'`,
   ).bind(paperId).first<PaperRow>();
-  if (!paper) return c.html(layout(c.env, { title: '찾을 수 없음', description: '', body: '<h1>회차를 찾을 수 없습니다</h1>' }), 404);
+  if (!paper) return notFound();
 
-  const { results: qs } = await c.env.DB.prepare(
+  const { results: all } = await c.env.DB.prepare(
     `SELECT ei.ord, s.name AS subject, qv.body, qv.choices_json, qv.answers_json, qv.explanation
        FROM exam_items ei JOIN question_versions qv ON qv.id = ei.question_version_id
        JOIN questions q ON q.id = qv.question_id JOIN subjects s ON s.id = q.subject_id
       WHERE ei.paper_id = ? ORDER BY ei.ord`,
   ).bind(paperId).all<QRow>();
+  const pages = Math.max(1, Math.ceil(all.length / PER_PAGE));
+  if (page > pages) return notFound();
+  const qs = all.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const pageUrl = (n: number) => `/p/${encodeURIComponent(paper.id)}${n === 1 ? '' : `/${n}`}`;
 
   const marks = '①②③④⑤⑥';
   const parts: string[] = [];
   qs.forEach((q, i) => {
     const choices = JSON.parse(q.choices_json) as string[];
     const answers = JSON.parse(q.answers_json) as number[];
+    if (i === 0 || q.subject !== qs[i - 1].subject) parts.push(`<h2 class="subject-head">${esc(q.subject)}</h2>`);
     parts.push(`<section class="card">
-  <div class="q-subject">${esc(q.subject)}</div>
   <p><strong>${q.ord}.</strong> ${rich(q.body)}</p>
   <ol class="plain">${choices.map((ch, k) => `<li>${marks[k] ?? k + 1} ${rich(ch)}</li>`).join('')}</ol>
   <details><summary>정답 및 해설 보기</summary>
@@ -110,27 +125,47 @@ export async function paperPage(c: Ctx, paperId: string) {
     ${q.explanation ? `<p>${rich(q.explanation)}</p>` : ''}
   </details>
 </section>`);
-    // 첫 광고는 "풀기" 버튼과 떨어뜨리려고 2번 문항 뒤에 둔다
-    if (i === 1 && qs.length > 2) parts.push(adHtml(c.env, 'display'));
-    else if ((i + 1) % AD_EVERY === 0 && i + 1 < qs.length) parts.push(adHtml(c.env, 'inarticle'));
+    if (i === 2 && qs.length > 3) parts.push(adHtml(c.env, 'inarticle'));
   });
 
-  const base = c.env.SITE_URL ?? '';
-  const title = `${paper.title} 기출문제 해설 | ${siteName(c.env)}`;
+  const first = qs[0]?.ord ?? 0;
+  const last = qs[qs.length - 1]?.ord ?? 0;
+  const pager = `<nav class="card pager" aria-label="문항 페이지">
+  <div class="row pager-main">
+    ${page > 1 ? `<a class="btn" href="${pageUrl(page - 1)}" rel="prev">← 이전 5문제</a>` : '<span></span>'}
+    <span class="muted">${page} / ${pages}</span>
+    ${page < pages ? `<a class="btn primary" href="${pageUrl(page + 1)}" rel="next">다음 5문제 →</a>` : `<a class="btn primary" href="/start/${encodeURIComponent(paper.id)}/exam">CBT로 풀어보기</a>`}
+  </div>
+  <details class="page-index"><summary>전체 문항 바로가기</summary>
+    <div class="page-grid">${Array.from({ length: pages }, (_, k) => {
+      const from = k * PER_PAGE + 1;
+      const to = Math.min((k + 1) * PER_PAGE, all.length);
+      return `<a href="${pageUrl(k + 1)}"${k + 1 === page ? ' aria-current="page"' : ''}>${from}~${to}</a>`;
+    }).join('')}</div>
+  </details>
+</nav>`;
+
+  const base = c.env.SITE_URL || '';
+  const range = `${first}~${last}번`;
+  // 모의고사를 기출로 오인하지 않도록, 공식·복원 기출에만 "기출문제"라고 쓴다
+  const kind = paper.source_type === 'official' || paper.source_type === 'restored' ? '기출문제' : '문제';
+  const title = `${paper.title} ${kind} 해설 ${range} | ${siteName(c.env)}`;
   const body = `
-<h1>${esc(paper.title)} 기출문제 및 해설</h1>
-<p class="muted">${esc(paper.certification)} · ${qs.length}문항 · ${esc(SOURCE_LABEL[paper.source_type] ?? paper.source_type)}${paper.source_note ? ` · ${esc(paper.source_note)}` : ''}</p>
-<div class="card row">
+<h1>${esc(paper.title)} 문제 및 해설 <span class="muted">${range}</span></h1>
+<p class="muted">${esc(paper.certification)} · 전체 ${all.length}문항 · ${esc(SOURCE_LABEL[paper.source_type] ?? paper.source_type)}${paper.source_note ? ` · ${esc(paper.source_note)}` : ''}</p>
+${page === 1 ? `<div class="card row">
   <a class="btn primary" href="/start/${encodeURIComponent(paper.id)}/exam">CBT 시험모드로 풀기</a>
   <a class="btn" href="/start/${encodeURIComponent(paper.id)}/practice">연습모드로 풀기</a>
   <a class="btn" href="/s/${encodeURIComponent(paper.id)}">과목별로 풀기</a>
-</div>
+</div>` : ''}
 ${parts.join('\n')}
-${adHtml(c.env, 'display')}`;
+${adHtml(c.env, 'display')}
+${pager}`;
   return c.html(layout(c.env, {
     title,
-    description: `${paper.certification} ${paper.title} 전 문항과 정답·해설. CBT 모의시험과 오답 다시 풀기 제공.`,
-    canonical: base ? `${base}/p/${paper.id}` : undefined,
+    description: `${paper.certification} ${paper.title} ${range} ${kind}와 정답·해설. CBT 모의시험과 오답 다시 풀기 제공.`,
+    canonical: base ? `${base}${pageUrl(page)}` : undefined,
+    head: [page > 1 ? `<link rel="prev" href="${base}${pageUrl(page - 1)}">` : '', page < pages ? `<link rel="next" href="${base}${pageUrl(page + 1)}">` : ''].join(''),
     body,
   }));
 }
@@ -160,9 +195,15 @@ export function privacyPage(c: Ctx) {
 export async function sitemap(c: Ctx) {
   const base = c.env.SITE_URL || new URL(c.req.url).origin;
   const { results } = await c.env.DB.prepare(
-    `SELECT id FROM exam_papers WHERE status = 'published' AND is_sample = 0 ORDER BY exam_date DESC`,
-  ).all<{ id: string }>();
-  const urls = [`${base}/`, ...results.map(r => `${base}/p/${r.id}`)];
+    `SELECT p.id, (SELECT COUNT(*) FROM exam_items ei WHERE ei.paper_id = p.id) AS n
+       FROM exam_papers p WHERE p.status = 'published' AND p.is_sample = 0 ORDER BY p.exam_date DESC`,
+  ).all<{ id: string; n: number }>();
+  const urls = [`${base}/`];
+  for (const r of results) {
+    const id = encodeURIComponent(r.id);
+    urls.push(`${base}/p/${id}`);
+    for (let k = 2; k <= Math.ceil(r.n / PER_PAGE); k++) urls.push(`${base}/p/${id}/${k}`);
+  }
   return c.body(
     `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(u => `<url><loc>${esc(u)}</loc></url>`).join('\n')}\n</urlset>`,
     200, { 'content-type': 'application/xml; charset=utf-8' },

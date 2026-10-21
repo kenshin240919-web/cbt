@@ -131,14 +131,25 @@ test('비회원도 모든 회차를 시작할 수 있음', async () => {
   assert.equal(r.status, 201);
 });
 
-test('공개 해설 페이지는 서버에서 렌더링되고 광고 자리가 5문항마다 들어감', async () => {
-  const res = await app.request('/p/isafety-sample', {}, { ...env, ADSENSE_CLIENT: '' });
-  assert.equal(res.status, 200);
-  const html = await res.text();
-  assert.match(html, /<h1>산업안전기사 필기 체험용 샘플 기출문제 및 해설<\/h1>/);
-  assert.equal((html.match(/data-kind="inarticle"/g) ?? []).length, 2); // 12문항 → 5, 10번 뒤
-  assert.match(html, /정답 및 해설 보기/);
-  assert.equal((await app.request('/p/nope', {}, env)).status, 404);
+test('공개 해설 페이지: 5문제씩 나눠 서버 렌더링, 페이지마다 광고 2개, 이전·다음 링크', async () => {
+  const noAds = { ...env, ADSENSE_CLIENT: '' };
+  const p1 = await (await app.request('/p/isafety-sample', {}, noAds)).text();
+  assert.match(p1, /<h1>산업안전기사 필기 체험용 샘플 문제 및 해설 <span class="muted">1~5번<\/span><\/h1>/);
+  assert.equal((p1.match(/<section class="card">/g) ?? []).length, 5);
+  assert.equal((p1.match(/data-kind="inarticle"/g) ?? []).length, 1);
+  assert.equal((p1.match(/data-kind="display"/g) ?? []).length, 1);
+  assert.match(p1, /href="\/p\/isafety-sample\/2" rel="next">다음 5문제/);
+  assert.match(p1, /CBT 시험모드로 풀기/);
+  const p3 = await (await app.request('/p/isafety-sample/3', {}, noAds)).text();
+  assert.equal((p3.match(/<section class="card">/g) ?? []).length, 2); // 11~12번
+  assert.match(p3, /rel="prev">← 이전 5문제/);
+  assert.doesNotMatch(p3, /data-kind="inarticle"/);
+  const one = await app.request('/p/isafety-sample/1', {}, noAds);
+  assert.equal(one.status, 301);
+  assert.equal(one.headers.get('location'), '/p/isafety-sample');
+  for (const bad of ['/p/isafety-sample/4', '/p/isafety-sample/0', '/p/isafety-sample/x', '/p/isafety-sample/1.5', '/p/nope']) {
+    assert.equal((await app.request(bad, {}, noAds)).status, 404, bad);
+  }
 });
 
 test('ads.txt·robots·sitemap·개인정보처리방침', async () => {
@@ -147,18 +158,18 @@ test('ads.txt·robots·sitemap·개인정보처리방침', async () => {
   assert.equal(await (await app.request('/ads.txt', {}, adEnv)).text(), 'google.com, pub-1234567890, DIRECT, f08c47fec0942fa0\n');
   assert.match(await (await app.request('http://x.test/robots.txt', {}, blank)).text(), /Sitemap: http:\/\/x\.test\/sitemap\.xml/);
   const sm = await (await app.request('http://x.test/sitemap.xml', {}, blank)).text();
-  assert.match(sm, /\/p\/isafety-real/);
+  assert.match(sm, /\/p\/isafety-real</);
   assert.doesNotMatch(sm, /isafety-sample/);
   assert.match(await (await app.request('/privacy', {}, env)).text(), /Google AdSense/);
   // 실제 설정(wrangler.jsonc) 값 확인
   assert.equal(await (await app.request('/ads.txt', {}, env)).text(), 'google.com, pub-3087515825675332, DIRECT, f08c47fec0942fa0\n');
   const live = await (await app.request('/p/isafety-sample', {}, env)).text();
-  assert.equal((live.match(/data-ad-slot="4261384956"/g) ?? []).length, 2); // 인아티클: 5·10번 뒤
-  assert.equal((live.match(/data-ad-slot="6639512269"/g) ?? []).length, 2); // 디스플레이: 2번 뒤·맨 아래
+  assert.equal((live.match(/data-ad-slot="4261384956"/g) ?? []).length, 1); // 인아티클: 3번째 문항 뒤
+  assert.equal((live.match(/data-ad-slot="6639512269"/g) ?? []).length, 1); // 디스플레이: 페이지 끝
   assert.match(live, /data-ad-layout="in-article" data-ad-format="fluid"/);
   assert.match(await (await app.request('/p/isafety-sample', {}, env)).text(), /<link rel="canonical" href="https:\/\/cbt\.guidejung\.com\/p\/isafety-sample">/);
   const ads = await (await app.request('/p/isafety-sample', {}, { ...adEnv, ADSENSE_SLOT_DISPLAY: '111' })).text();
-  assert.equal((ads.match(/data-ad-slot="111"/g) ?? []).length, 4); // 콘텐츠 내 단위 미설정 → 디스플레이로 대체
+  assert.equal((ads.match(/data-ad-slot="111"/g) ?? []).length, 2); // 콘텐츠 내 단위 미설정 → 디스플레이로 대체
   assert.doesNotMatch(ads, /광고 자리/);
   const cfg = await (await app.request('/ads-config.js', {}, { ...adEnv, ADSENSE_SLOT_DISPLAY: '111' })).text();
   assert.match(cfg, /"client":"ca-pub-1234567890"/);

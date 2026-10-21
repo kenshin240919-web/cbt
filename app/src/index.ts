@@ -340,6 +340,7 @@ app.get('/api/me/attempts', async c => {
 
 // 검색 유입용 공개 페이지(서버 렌더링). 시험모드 API와 분리되어 있어 응시 중 정답 노출과 무관하다.
 app.get('/p/:paperId', c => paperPage(c, c.req.param('paperId')));
+app.get('/p/:paperId/:page', c => paperPage(c, c.req.param('paperId'), c.req.param('page')));
 app.get('/privacy', c => privacyPage(c));
 app.get('/sitemap.xml', c => sitemap(c));
 app.get('/robots.txt', c => robotsTxt(c));
