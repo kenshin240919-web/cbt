@@ -10,13 +10,14 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "cbt", "database_id": "local-dev-placeholder", "migrations_dir": "migrations" }
   ],
-  // 애드센스 승인 후 값 입력. 비어 있으면 화면에 "광고 자리" 표시만 나온다.
+  "routes": [{ "pattern": "cbt.guidejung.com", "custom_domain": true }],
+  // ADSENSE_SLOT_INARTICLE이 비어 있으면 그 자리에 디스플레이 광고 단위를 대신 쓴다.
   "vars": {
     "SITE_NAME": "CBT 기출 학습",
-    "SITE_URL": "",
-    "CONTACT_EMAIL": "",
-    "ADSENSE_CLIENT": "",
-    "ADSENSE_SLOT_DISPLAY": "",
+    "SITE_URL": "https://cbt.guidejung.com",
+    "CONTACT_EMAIL": "kenshin240919@gmail.com",
+    "ADSENSE_CLIENT": "ca-pub-3087515825675332",
+    "ADSENSE_SLOT_DISPLAY": "6639512269",
     "ADSENSE_SLOT_INARTICLE": ""
   }
 }

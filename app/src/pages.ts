@@ -25,9 +25,10 @@ export function adsConfig(env: AdEnv) {
 // 광고 단위 HTML. 애드센스 정책상 "광고"/"스폰서" 외 문구로 클릭을 유도하지 않는다.
 export function adHtml(env: AdEnv, kind: AdKind): string {
   const { client, slots } = adsConfig(env);
-  const slot = slots[kind];
+  const use: AdKind = slots[kind] ? kind : 'display'; // 콘텐츠 내 단위가 없으면 디스플레이로 대체
+  const slot = slots[use];
   if (!client || !slot) return `<div class="ad ad-placeholder" data-kind="${kind}">광고 자리 (${kind})</div>`;
-  const attrs = kind === 'inarticle'
+  const attrs = use === 'inarticle'
     ? `style="display:block;text-align:center" data-ad-layout="in-article" data-ad-format="fluid"`
     : `style="display:block" data-ad-format="auto" data-full-width-responsive="true"`;
   return `<div class="ad"><ins class="adsbygoogle" ${attrs} data-ad-client="${esc(client)}" data-ad-slot="${esc(slot)}"></ins></div>`;

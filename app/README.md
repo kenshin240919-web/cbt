@@ -43,6 +43,19 @@ npx wrangler d1 execute cbt --local --file .wrangler/import.sql
 
 지키는 규칙: 버튼·보기 바로 옆 금지(실수 클릭), "광고" 표기 외 클릭 유도 문구 금지, 광고 높이 미리 확보(화면 밀림 방지), 광고 클릭으로 이탈해도 답안은 자동 저장되어 있음.
 
+## 배포 (cbt.guidejung.com)
+조건: guidejung.com DNS가 Cloudflare에 있어야 함. 사용자 PC에서:
+```
+cd app
+npm install
+npx wrangler login                       # 브라우저로 Cloudflare 로그인
+npx wrangler d1 create cbt               # 출력된 database_id를 wrangler.jsonc에 붙여넣기
+npx wrangler d1 migrations apply cbt --remote
+node scripts/import-paper.mjs content/sample-paper.json > import.sql && npx wrangler d1 execute cbt --remote --file import.sql
+npx wrangler deploy                      # cbt.guidejung.com 자동 연결(routes.custom_domain)
+```
+- `ads.txt`는 **루트 도메인 guidejung.com/ads.txt**에 이미 있어야 함(하위 도메인은 루트의 ads.txt를 따름).
+
 ## 다음 단계
 1. 실제 기출 1회차 입력(사용자) → 이미지 문항 지원(R2)
 2. 애드센스 신청(실제 기출 콘텐츠 충분히 확보 후)

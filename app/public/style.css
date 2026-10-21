@@ -26,7 +26,8 @@ button:focus-visible, input:focus-visible + span, a:focus-visible { outline: 3px
 
 /* 풀이 화면: PC는 문제 + OMR 병렬, 모바일은 OMR 접기 */
 .solve { display: grid; grid-template-columns: 1fr 260px; gap: 16px; align-items: start; }
-.omr { position: sticky; top: 12px; }
+/* 답안표에 광고가 함께 있어 고정(sticky)하지 않는다: 스크롤 따라오는 광고 정책 위험 회피 */
+.omr { position: static; }
 @media (max-width: 800px) { .solve { grid-template-columns: 1fr; } .omr { position: static; order: -1; } }
 .omr-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .omr-grid a { display: block; text-align: center; padding: 6px 0; border: 1px solid var(--line); border-radius: 6px; text-decoration: none; color: var(--text); font-size: .85rem; }

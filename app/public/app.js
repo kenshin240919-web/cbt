@@ -25,9 +25,10 @@ if (ADS.client) {
 }
 
 function ad(kind = 'display', extraClass = '') {
-  const slot = ADS.slots?.[kind];
+  const use = ADS.slots?.[kind] ? kind : 'display'; // 콘텐츠 내 단위가 없으면 디스플레이로 대체
+  const slot = ADS.slots?.[use];
   if (!ADS.client || !slot) return `<div class="ad ad-placeholder ${extraClass}" data-kind="${kind}">광고 자리 (${kind})</div>`;
-  const attrs = kind === 'inarticle'
+  const attrs = use === 'inarticle'
     ? 'style="display:block;text-align:center" data-ad-layout="in-article" data-ad-format="fluid"'
     : 'style="display:block" data-ad-format="auto" data-full-width-responsive="true"';
   return `<div class="ad ${extraClass}"><ins class="adsbygoogle" ${attrs} data-ad-client="${esc(ADS.client)}" data-ad-slot="${esc(slot)}"></ins></div>`;
