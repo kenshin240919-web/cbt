@@ -2,7 +2,9 @@ import { Hono } from 'hono';
 import { getCookie, setCookie } from 'hono/cookie';
 import { GRADER_VERSION, POLICIES, formatScore, grade, isCorrect, type GradeResult } from './scoring.ts';
 
-type Env = { DB: D1Database };
+import { adsConfigScript, adsTxt, paperPage, privacyPage, robotsTxt, sitemap, type AdEnv } from './pages.ts';
+
+type Env = { DB: D1Database } & AdEnv;
 type Owner = { userId: string | null; guestHash: string | null };
 type Vars = { owner: Owner };
 
@@ -124,8 +126,6 @@ app.post('/api/attempts', async c => {
   if (!paper) return c.json({ error: 'paper_not_found' }, 404);
 
   const owner = c.get('owner');
-  if (!owner.userId && paper.is_sample !== 1) return c.json({ error: 'login_required' }, 401);
-
   const id = crypto.randomUUID();
   await c.env.DB.batch([
     c.env.DB.prepare(
@@ -303,5 +303,13 @@ app.get('/api/me/attempts', async c => {
     })),
   });
 });
+
+// 검색 유입용 공개 페이지(서버 렌더링). 시험모드 API와 분리되어 있어 응시 중 정답 노출과 무관하다.
+app.get('/p/:paperId', c => paperPage(c, c.req.param('paperId')));
+app.get('/privacy', c => privacyPage(c));
+app.get('/sitemap.xml', c => sitemap(c));
+app.get('/robots.txt', c => robotsTxt(c));
+app.get('/ads.txt', c => adsTxt(c));
+app.get('/ads-config.js', c => adsConfigScript(c));
 
 export default app;

@@ -2,8 +2,21 @@
   "name": "cbt-app",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-01",
-  "assets": { "directory": "./public", "not_found_handling": "single-page-application", "run_worker_first": ["/api/*"] },
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/p/*", "/privacy", "/sitemap.xml", "/robots.txt", "/ads.txt", "/ads-config.js"]
+  },
   "d1_databases": [
     { "binding": "DB", "database_name": "cbt", "database_id": "local-dev-placeholder", "migrations_dir": "migrations" }
-  ]
+  ],
+  // 애드센스 승인 후 값 입력. 비어 있으면 화면에 "광고 자리" 표시만 나온다.
+  "vars": {
+    "SITE_NAME": "CBT 기출 학습",
+    "SITE_URL": "",
+    "CONTACT_EMAIL": "",
+    "ADSENSE_CLIENT": "",
+    "ADSENSE_SLOT_DISPLAY": "",
+    "ADSENSE_SLOT_INARTICLE": ""
+  }
 }

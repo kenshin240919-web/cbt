@@ -53,3 +53,16 @@ th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); f
 .fail { color: var(--bad); font-weight: 600; }
 .pass { color: var(--ok); font-weight: 600; }
 .big { font-size: 2rem; font-weight: 700; }
+
+/* 광고: 콘텐츠·버튼과 충분히 띄우고 "광고" 표기. 높이를 미리 잡아 화면 밀림(CLS) 방지 */
+.ad { margin: 32px 0; min-height: 120px; text-align: center; clear: both; }
+.ad::before { content: "광고"; display: block; font-size: .7rem; color: var(--muted); text-align: left; margin-bottom: 4px; }
+.ad-placeholder { display: flex; align-items: center; justify-content: center; border: 2px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: .85rem; }
+.ad-placeholder::before { content: none; }
+.omr .ad { margin: 24px 0 0; min-height: 250px; }
+.btn { display: inline-flex; align-items: center; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); text-decoration: none; min-height: 44px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.foot { max-width: 1100px; margin: 24px auto; padding: 16px; font-size: .85rem; color: var(--muted); border-top: 1px solid var(--line); }
+ol.plain { list-style: none; padding: 0; }
+details { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 8px; }
+summary { cursor: pointer; color: var(--accent); min-height: 32px; }

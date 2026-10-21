@@ -123,10 +123,32 @@ test('타인의 시도는 조회·저장·제출 불가', async () => {
   assert.equal((await other.json('POST', `/api/attempts/${body.id}/submit`)).status, 404);
 });
 
-test('비회원은 샘플이 아닌 회차를 시작할 수 없음', async () => {
+test('비회원도 모든 회차를 시작할 수 있음', async () => {
   await env.DB.prepare(`INSERT INTO exam_papers (id, certification_id, title, source_type, is_sample) VALUES ('isafety-real', 'isafety-written', '실제 회차', 'official', 0)`).run();
   const r = await new Client().json('POST', '/api/attempts', { paperId: 'isafety-real', mode: 'exam' });
-  assert.equal(r.status, 401);
+  assert.equal(r.status, 201);
+});
+
+test('공개 해설 페이지는 서버에서 렌더링되고 광고 자리가 5문항마다 들어감', async () => {
+  const res = await app.request('/p/isafety-sample', {}, env);
+  assert.equal(res.status, 200);
+  const html = await res.text();
+  assert.match(html, /<h1>산업안전기사 필기 체험용 샘플 기출문제 및 해설<\/h1>/);
+  assert.equal((html.match(/data-kind="inarticle"/g) ?? []).length, 2); // 12문항 → 5, 10번 뒤
+  assert.match(html, /정답 및 해설 보기/);
+  assert.equal((await app.request('/p/nope', {}, env)).status, 404);
+});
+
+test('ads.txt·robots·sitemap·개인정보처리방침', async () => {
+  const adEnv = { ...env, ADSENSE_CLIENT: 'ca-pub-1234567890' };
+  assert.equal(await (await app.request('/ads.txt', {}, adEnv)).text(), 'google.com, pub-1234567890, DIRECT, f08c47fec0942fa0\n');
+  assert.match(await (await app.request('http://x.test/robots.txt', {}, env)).text(), /Sitemap: http:\/\/x\.test\/sitemap\.xml/);
+  const sm = await (await app.request('http://x.test/sitemap.xml', {}, env)).text();
+  assert.match(sm, /\/p\/isafety-real/);
+  assert.doesNotMatch(sm, /isafety-sample/);
+  assert.match(await (await app.request('/privacy', {}, env)).text(), /Google AdSense/);
+  const cfg = await (await app.request('/ads-config.js', {}, { ...adEnv, ADSENSE_SLOT_DISPLAY: '111' })).text();
+  assert.match(cfg, /"client":"ca-pub-1234567890"/);
 });
 
 test('제출 → 채점: 중복 제출해도 결과 1개, 결과·목록 점수 표시 동일', async () => {

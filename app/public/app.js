@@ -13,6 +13,38 @@ async function api(method, url, body) {
   return { ok: res.ok, status: res.status, data };
 }
 
+// ---------- 광고 ----------
+// 정책: 보기·제출·다시풀기 버튼 바로 옆에는 두지 않는다(실수 클릭 방지), "광고" 표기만 하고 클릭 유도 문구 금지.
+const ADS = window.ADS ?? { client: '', slots: {} };
+if (ADS.client) {
+  const s = document.createElement('script');
+  s.async = true;
+  s.crossOrigin = 'anonymous';
+  s.src = `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${encodeURIComponent(ADS.client)}`;
+  document.head.appendChild(s);
+}
+
+function ad(kind = 'display', extraClass = '') {
+  const slot = ADS.slots?.[kind];
+  if (!ADS.client || !slot) return `<div class="ad ad-placeholder ${extraClass}" data-kind="${kind}">광고 자리 (${kind})</div>`;
+  const attrs = kind === 'inarticle'
+    ? 'style="display:block;text-align:center" data-ad-layout="in-article" data-ad-format="fluid"'
+    : 'style="display:block" data-ad-format="auto" data-full-width-responsive="true"';
+  return `<div class="ad ${extraClass}"><ins class="adsbygoogle" ${attrs} data-ad-client="${esc(ADS.client)}" data-ad-slot="${esc(slot)}"></ins></div>`;
+}
+
+// 화면을 새로 그릴 때마다 새 광고 단위만 채운다(SPA에서 같은 단위를 두 번 push하면 오류)
+function fillAds() {
+  if (!ADS.client) return;
+  view.querySelectorAll('ins.adsbygoogle:not([data-pushed])').forEach(el => {
+    el.dataset.pushed = '1';
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch { /* 광고 실패가 학습을 막지 않게 */ }
+  });
+}
+
+const QUESTION_AD_EVERY = 10; // 풀이 화면: 10문항마다 1개
+const REVIEW_AD_EVERY = 5; // 오답 해설: 5문항마다 1개
+
 const MODE = { practice: '연습', exam: '시험' };
 const RESULT = { correct: '정답', wrong: '오답', unanswered: '미응답' };
 
@@ -25,20 +57,24 @@ async function home() {
       ${resume.map(a => `<p><a href="#/a/${a.id}">${esc(a.paper_title)} (${MODE[a.mode]}모드)</a> <span class="muted">${new Date(a.started_at).toLocaleString('ko-KR')} 시작</span></p>`).join('')}
     </div>` : ''}
     <h1>회차 선택</h1>
-    ${(p.papers ?? []).map(paper => `
+    <p class="muted">회원가입 없이 모든 회차를 무료로 풀 수 있습니다.</p>
+    ${(p.papers ?? []).map((paper, i) => `
+      ${i === 3 ? ad('display') : ''}
       <div class="card">
-        <strong>${esc(paper.title)}</strong>${paper.is_sample ? '<span class="badge">로그인 없이 체험</span>' : ''}
-        <div class="muted">${esc(paper.certification)} · ${paper.question_count}문항</div>
+        <strong>${esc(paper.title)}</strong>${paper.is_sample ? '<span class="badge">샘플</span>' : ''}
+        <div class="muted">${esc(paper.certification)} · ${paper.question_count}문항 · <a href="/p/${esc(paper.id)}">문제·해설 보기</a></div>
         <div class="row" style="margin-top:10px">
           <button data-start="${esc(paper.id)}" data-mode="practice">연습모드 <span class="muted">(바로 정답·해설)</span></button>
           <button class="primary" data-start="${esc(paper.id)}" data-mode="exam">시험모드</button>
         </div>
-      </div>`).join('') || '<p class="muted">등록된 회차가 없습니다.</p>'}`;
+      </div>`).join('') || '<p class="muted">등록된 회차가 없습니다.</p>'}
+    ${ad('display')}`;
+  fillAds();
   view.querySelectorAll('[data-start]').forEach(btn => btn.addEventListener('click', async () => {
     btn.disabled = true;
     const r = await api('POST', '/api/attempts', { paperId: btn.dataset.start, mode: btn.dataset.mode });
     if (r.ok) location.hash = `#/a/${r.data.id}`;
-    else { alert(r.data.error === 'login_required' ? '로그인 후 이용할 수 있는 회차입니다.' : '시작하지 못했습니다.'); btn.disabled = false; }
+    else { alert('시작하지 못했습니다. 잠시 후 다시 시도해 주세요.'); btn.disabled = false; }
   }));
 }
 
@@ -57,12 +93,15 @@ function solve(attempt) {
       <aside class="omr card">
         <div class="row" style="justify-content:space-between"><strong>답안표</strong><span id="save" class="status">저장됨</span></div>
         <p class="muted" id="counts"></p>
+        <button class="primary" id="submit" style="width:100%;margin-bottom:12px">제출하고 채점</button>
         <div class="omr-grid" id="grid"></div>
-        <button class="primary" id="submit" style="width:100%;margin-top:12px">제출하고 채점</button>
+        ${matchMedia('(min-width: 801px)').matches ? ad('display') : ''}
       </aside>
     </div>`;
   const qBox = view.querySelector('#questions');
-  qBox.innerHTML = attempt.items.map(renderQuestion).join('');
+  qBox.innerHTML = attempt.items.map((item, i) =>
+    renderQuestion(item) + ((i + 1) % QUESTION_AD_EVERY === 0 && i + 1 < attempt.items.length ? ad('inarticle') : '')).join('');
+  fillAds();
   attempt.items.forEach(paintFeedback);
   refreshSide();
 
@@ -203,14 +242,17 @@ async function result(id) {
       </div>
     </div>
     <h2>틀린 문제 · 미응답 (${misses.length})</h2>
-    ${misses.map(i => `
+    ${misses.map((i, idx) => `
+      ${idx % REVIEW_AD_EVERY === 2 ? ad('inarticle') : ''}
       <section class="card">
         <div class="q-subject">${esc(i.subjectName)} · <strong class="${i.result === 'wrong' ? 'fail' : ''}">${RESULT[i.result]}</strong></div>
         <p><strong>${i.ord}.</strong> ${esc(i.body)}</p>
         <ul class="choices">${i.choices.map((ch, k) => `<li><label class="${i.answers.includes(k + 1) ? 'is-answer' : i.selected === k + 1 ? 'is-wrong' : ''}">
           <span>${'①②③④⑤⑥'[k] ?? k + 1} ${esc(ch)}${i.answers.includes(k + 1) ? ' <strong>(정답)</strong>' : ''}${i.selected === k + 1 ? ' <strong>(내 답)</strong>' : ''}</span></label></li>`).join('')}</ul>
         ${i.explanation ? `<div class="fb ok"><strong>해설</strong><p>${esc(i.explanation)}</p></div>` : ''}
-      </section>`).join('') || '<p class="muted">모두 맞혔습니다.</p>'}`;
+      </section>`).join('') || '<p class="muted">모두 맞혔습니다.</p>'}
+    ${misses.length < 3 ? ad('display') : ''}`;
+  fillAds();
   view.querySelectorAll('[data-retry]').forEach(btn => btn.addEventListener('click', async () => {
     const res = await api('POST', `/api/attempts/${id}/retry`, { include: JSON.parse(btn.dataset.retry), mode: 'practice' });
     if (res.ok) location.hash = `#/a/${res.data.id}`;
@@ -230,7 +272,9 @@ async function records() {
       <td>${a.status !== 'graded' ? '진행 중' : a.score ? `${a.score.display}점 ${a.verdict === 'pass' ? '<span class="pass">합격</span>' : '<span class="fail">불합격</span>'}` : '-'}</td>
       <td>${a.status === 'graded' ? `${a.correct}/${a.wrong}/${a.unanswered}` : ''}</td>
       <td class="muted">${new Date(a.started_at).toLocaleString('ko-KR')}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">기록이 없습니다.</td></tr>'}
-    </tbody></table></div>`;
+    </tbody></table></div>
+    ${ad('display')}`;
+  fillAds();
 }
 
 // ---------- 라우터 ----------
@@ -238,7 +282,13 @@ async function route() {
   const [, page, id] = location.hash.split('/');
   view.innerHTML = '<p class="muted">불러오는 중…</p>';
   try {
-    if (page === 'a' && id) {
+    if (page === 'start' && id) {
+      // 공개 해설 페이지(/p/:id)에서 바로 풀기
+      const mode = location.hash.split('/')[3] === 'practice' ? 'practice' : 'exam';
+      const r = await api('POST', '/api/attempts', { paperId: id, mode });
+      if (r.ok) location.replace(`#/a/${r.data.id}`);
+      else view.innerHTML = '<p>시작하지 못했습니다.</p>';
+    } else if (page === 'a' && id) {
       const r = await api('GET', `/api/attempts/${id}`);
       if (!r.ok) { view.innerHTML = '<p>시험을 찾을 수 없습니다.</p>'; return; }
       solve(r.data);
