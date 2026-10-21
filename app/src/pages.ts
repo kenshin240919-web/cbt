@@ -78,7 +78,7 @@ ${client ? `<script>document.querySelectorAll('ins.adsbygoogle').forEach(functio
 type PaperRow = { id: string; title: string; certification: string; exam_date: string | null; source_type: string; source_note: string | null };
 type QRow = { ord: number; subject: string; body: string; choices_json: string; answers_json: string; explanation: string | null };
 
-const SOURCE_LABEL: Record<string, string> = { official: '공식 공개 기출', restored: '복원 기출', original: '자체 제작', sample: '샘플' };
+const SOURCE_LABEL: Record<string, string> = { official: '공식 공개 기출', restored: '복원 기출', original: '모의고사', sample: '샘플' };
 const AD_EVERY = 5; // 해설 페이지: 5문항마다 콘텐츠 내 광고 1개
 
 // 회차별 기출 해설 페이지. 정답·해설은 접힌 상태로 제공(먼저 풀어보도록), 문항 사이에 광고.
@@ -107,7 +107,7 @@ export async function paperPage(c: Ctx, paperId: string) {
   <ol class="plain">${choices.map((ch, k) => `<li>${marks[k] ?? k + 1} ${rich(ch)}</li>`).join('')}</ol>
   <details><summary>정답 및 해설 보기</summary>
     <p><strong>정답: ${answers.length ? answers.map(a => marks[a - 1] ?? a).join(', ') : '전원 정답'}</strong></p>
-    ${q.explanation ? `<p>${esc(q.explanation)}</p>` : ''}
+    ${q.explanation ? `<p>${rich(q.explanation)}</p>` : ''}
   </details>
 </section>`);
     // 첫 광고는 "풀기" 버튼과 떨어뜨리려고 2번 문항 뒤에 둔다

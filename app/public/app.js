@@ -156,7 +156,7 @@ function solve(attempt) {
     answers.forEach(a => box.querySelector(`label[data-choice="${a}"]`)?.classList.add('is-answer'));
     if (!correct) box.querySelector(`label[data-choice="${item.selected}"]`)?.classList.add('is-wrong');
     slot.innerHTML = `<div class="fb ${correct ? 'ok' : 'bad'}"><strong>${correct ? '정답입니다' : `오답입니다 · 정답 ${answers.join(', ')}번`}</strong>
-      ${explanation ? `<p>${esc(explanation)}</p>` : ''}</div>`;
+      ${explanation ? `<p>${rich(explanation)}</p>` : ''}</div>`;
   }
 
   function refreshSide() {
@@ -277,7 +277,7 @@ async function result(id) {
         <p><strong>${i.ord}.</strong> ${rich(i.body)}</p>
         <ul class="choices">${i.choices.map((ch, k) => `<li><label class="${i.answers.includes(k + 1) ? 'is-answer' : i.selected === k + 1 ? 'is-wrong' : ''}">
           <span>${'①②③④⑤⑥'[k] ?? k + 1} ${rich(ch)}${i.answers.includes(k + 1) ? ' <strong>(정답)</strong>' : ''}${i.selected === k + 1 ? ' <strong>(내 답)</strong>' : ''}</span></label></li>`).join('')}</ul>
-        ${i.explanation ? `<div class="fb ok"><strong>해설</strong><p>${esc(i.explanation)}</p></div>` : ''}
+        ${i.explanation ? `<div class="fb ok"><strong>해설</strong><p>${rich(i.explanation)}</p></div>` : ''}
       </section>`).join('') || '<p class="muted">모두 맞혔습니다.</p>'}
     ${misses.length < 3 ? ad('display') : ''}`;
   fillAds();
