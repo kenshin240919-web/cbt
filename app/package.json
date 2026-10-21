@@ -8,7 +8,9 @@
     "db:import": "node scripts/import-paper.mjs content/sample-paper.json > .wrangler/import.sql && wrangler d1 execute cbt --local --file .wrangler/import.sql",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "import:remote": "node scripts/import-all.mjs > .wrangler/import-all.sql && wrangler d1 execute cbt --remote --file .wrangler/import-all.sql",
+    "deploy:ci": "wrangler d1 migrations apply cbt --remote && npm run import:remote && wrangler deploy"
   },
   "dependencies": {
     "hono": "^4.13.13"
