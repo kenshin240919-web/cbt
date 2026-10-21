@@ -19,15 +19,16 @@ npm test               # 채점 규칙 + API 테스트
 - 과락(과목 40 미만)·합격(평균 60 이상), 복수정답·전원정답, 중복 제출 방지, 다른 탭 충돌(409)
 
 ## 기출 입력 방법
-`content/sample-paper.json` 형식을 복사해 회차 파일을 만든 뒤:
-```
-node scripts/import-paper.mjs content/2022-2.json > .wrangler/import.sql
-npx wrangler d1 execute cbt --local --file .wrangler/import.sql
-```
-- `answer`는 정답 보기 번호 배열(`[3]`, 복수정답 `[1,3]`, 전원정답 `[]`)
-- 같은 `key` 문항 내용을 고쳐 다시 넣으면 새 버전이 생기고, 이미 푼 기록은 예전 버전을 유지
-- `sourceType`: `official`(공식 공개) / `restored`(복원) / `original`(자체) / `sample`
-- 과목명은 현행 출제기준으로 확인 후 수정 필요
+1. `content/TEMPLATE.txt`를 복사해 `content/2020-1.txt`처럼 만들고 문제를 텍스트로 입력
+   - 문제 번호 `1.` / 보기 `①` 또는 `1)` / `정답: ③` (복수정답 `정답: 1, 3`, `정답: 전원정답`) / `해설:` (선택)
+   - 과목이 바뀌면 `[과목 2] 과목명` 줄, 문제 번호는 1~120 계속 이어서
+2. 변환·검사: `node scripts/txt-to-paper.mjs content/2020-1.txt > content/2020-1.json`
+   - 틀린 곳이 있으면 몇 번째 줄인지 알려주고 멈춤
+3. DB에 넣기: `node scripts/import-paper.mjs content/2020-1.json > import.sql` 후
+   `npx wrangler d1 execute cbt --local --file import.sql` (배포 서버는 `--remote`)
+
+- 같은 회차ID로 다시 넣으면 고친 문항만 새 버전이 되고, 이미 푼 기록은 예전 버전을 유지
+- 그림이 있는 문항은 아직 미지원(다음 작업)
 
 ## 애드센스 광고
 `wrangler.jsonc`의 `vars`에 승인 후 값 입력: `ADSENSE_CLIENT`(ca-pub-…), `ADSENSE_SLOT_DISPLAY`, `ADSENSE_SLOT_INARTICLE`, `SITE_URL`, `CONTACT_EMAIL`.
